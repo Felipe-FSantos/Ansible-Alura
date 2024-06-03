@@ -1,0 +1,45 @@
+---
+   - name: Install dependencias
+     ansible.builtin.apt:
+       pkg:
+       - mysql-server 
+       - python3-pymysql
+       state: latest
+       update-cache: yes
+     #become é para comandos Sudo
+     become: yes
+      
+   - name: Create a new database with name 'wordpress_db'
+     community.mysql.mysql_db:
+       name: '{{ wp_db_name }}'
+       state: present
+       #absent apagaria o banco de dados e criaria uma nova
+       #present caso ja exista ele não cria
+       login_unix_socket: /run/mysqld/mysqld.sock
+     become: yes
+
+   - name: Create database user with name 'wordpress_user' and password '12345' with all database privileges
+     community.mysql.mysql_user:
+       name: '{{ wp_db_user }}'
+       password: 12345
+       #O previlégio priv: '*.*:ALL' da permissão para alterar tudo no banco de dados
+       #Para restringir altere para "wordpress_db.*" para dar acesso apenas para esse DB  e "ALL" para os coomandos chave que esse usuário vai executar
+       priv: '{{ wp_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,DROP,ALTER'
+       state: absent
+       #Login_unix_socket é utilizado para se conectar ao banco de dados
+       login_unix_socket: /run/mysqld/mysqld.sock
+       host: '{{ item }}'
+     with_items:
+      - 'localhost'
+      - '127.0.0.1'
+      - '{{ wp_ip }}'
+     become: yes
+
+   - name: Configure Database
+     ansible.builtin.replace:
+      path: /etc/mysql/mysql.conf.d/mysqld.cnf
+      regexp: '127.0.0.1'
+      replace: '0.0.0.0'
+     become: yes
+     notify: 
+        - restart mysql
